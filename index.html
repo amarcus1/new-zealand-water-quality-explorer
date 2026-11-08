@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Zealand Water Quality</title>
+
+    <!-- MapLibre GL JS -->
+    <link href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.21.0/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.21.0/dist/maplibre-gl.js"></script>
+
+    <!-- PMTiles protocol plugin — lets MapLibre read .pmtiles files directly -->
+    <script src="https://cdn.jsdelivr.net/npm/pmtiles@4.4.0/dist/pmtiles.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        #map { width: 100vw; height: 100vh; }
+
+        /* --- Legend --- */
+        #legend {
+            position: absolute;
+            bottom: 30px;
+            left: 10px;
+            background: white;
+            padding: 12px 14px;
+            border-radius: 6px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+            font-size: 13px;
+            z-index: 1;
+        }
+        #legend h4 {
+            margin: 0 0 8px 0;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .legend-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 3px;
+        }
+        .legend-color {
+            width: 20px;
+            height: 14px;
+            margin-right: 8px;
+            border-radius: 2px;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+
+        /* --- Info panel --- */
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: white;
+            padding: 10px 14px;
+            border-radius: 6px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+            font-size: 13px;
+            z-index: 1;
+            max-width: 280px;
+        }
+        #info h3 {
+            margin: 0 0 4px 0;
+            font-size: 15px;
+        }
+        #info p {
+            margin: 0;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<!-- Info panel -->
+<div id="info">
+    <h3>New Zealand Water Quality</h3>
+    <p>
+        Data from <a href="https://www.lawa.org.nz" target="_blank">Land, Air, Water Aotearoa (LAWA)</a>
+        and LAWA partner agencies, licensed under
+        <a href="https://creativecommons.org/licenses/by/4.0" target="_blank">CC BY 4.0</a>.
+        Presented by Andrew Marcus.
+    </p>
+</div>
+
+<script>
+    // ── Register the PMTiles protocol so MapLibre can read .pmtiles URLs ──
+    const protocol = new pmtiles.Protocol();
+    maplibregl.addProtocol('pmtiles', protocol.tile);
+
+    // ── Create the map ────────────────────────────────────────────────────
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: 'https://tiles.openfreemap.org/styles/positron',
+        bounds: [[165.5, -48], [179.5, -34]],
+        maxZoom: 14,
+        minZoom: 4
+    });
+
+    const popup = new maplibregl.Popup({
+        closeButton: false,
+        closeOnClick: false
+    });
+
+    map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+    // ── Add the PMTiles source and layers when the map loads ──────────────
+    map.on('load', () => {
+        map.addSource('ammonium', {
+            type: 'vector',
+            url: 'pmtiles://ammonium.pmtiles'
+        });
+
+        map.addLayer({
+            id: 'ammonium-points',
+            type: 'circle',
+            source: 'ammonium',
+            'source-layer': 'ammonium',
+            paint: {
+                'circle-radius': 5,
+                'circle-color': '#2b8cbe',
+                'circle-stroke-color': '#fff',
+                'circle-stroke-width': 1,
+                'circle-opacity': 0.8
+            }
+        });
+
+        // Build popup from clicked feature's properties
+        map.on('click', 'ammonium-points', (e) =>{
+            const f = e.features[0].properties;
+            const html = `
+                <strong>${f.LawaSiteID}</strong><br>
+                Max NH4: <strong>${f.NH4max} mg/L</strong><br>
+                Median NH4: <strong>${f.NH4median} mg/L</strong>
+            `;
+
+                new maplibregl.Popup({ maxWidth: '240px' })
+                .setLngLat(e.lngLat)
+                .setHTML(html)
+                .addTo(map);
+        })
+
+        // Turn the cursor into a pointer
+        map.on('mouseenter', 'ammonium-points', (e) => {
+            map.getCanvas().style.cursor = 'pointer';
+
+            const f = e.features[0];
+
+            const coordinates = f.geometry.coordinates.slice();
+            const description = f.properties.SiteID;
+
+            popup.setLngLat(coordinates).setHTML(description).addTo(map);
+
+        });
+        map.on('mouseleave', 'ammonium-points', () => {
+            map.getCanvas().style.cursor = '';
+            popup.remove();
+        });
+
+
+    });
+</script>
+
+</body>
+</html>
